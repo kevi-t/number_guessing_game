@@ -19,7 +19,9 @@ else
   # If user exists, extract the stats
   GAMES_PLAYED=$(echo $USER_STATS | cut -d'|' -f1)
   BEST_GAME=$(echo $USER_STATS | cut -d'|' -f2)
-  echo "Welcome back, $USERNAME! You have played $GAMES_PLAYED games, and your best game took $BEST_GAME guesses."
+
+echo "Welcome back, $USERNAME! You have played $GAMES_PLAYED games, and your best game took $BEST_GAME guesses." 
+
 fi
 
 #Generate a random number between 1 and 1000
