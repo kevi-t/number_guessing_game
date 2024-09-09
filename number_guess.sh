@@ -8,21 +8,21 @@ echo "Enter your username:"
 read USERNAME
 
 # Check if username exists in the database
-USER_CHECK=$($PSQL "SELECT COUNT(*) FROM users WHERE username='$USERNAME'")
-if [[ $USER_CHECK -eq 0 ]]; then
+USER_STATS=$($PSQL "SELECT games_played, best_game FROM users WHERE username='$USERNAME'")
+
+if [[ -z $USER_STATS ]]; then
   # If user does not exist
   echo "Welcome, $USERNAME! It looks like this is your first time here."
   # Insert the new user into the database
   $PSQL "INSERT INTO users (username, games_played, best_game) VALUES ('$USERNAME', 0, NULL)"
 else
-  # If user exists
-  USER_STATS=$($PSQL "SELECT games_played, best_game FROM users WHERE username='$USERNAME'")
+  # If user exists, extract the stats
   GAMES_PLAYED=$(echo $USER_STATS | cut -d'|' -f1)
   BEST_GAME=$(echo $USER_STATS | cut -d'|' -f2)
   echo "Welcome back, $USERNAME! You have played $GAMES_PLAYED games, and your best game took $BEST_GAME guesses."
 fi
 
-# Generate a random number between 1 and 1000
+#Generate a random number between 1 and 1000
 SECRET_NUMBER=$(( RANDOM % 1000 + 1 ))
 
 # Initialize guess count
