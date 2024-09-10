@@ -1,59 +1,67 @@
 #!/bin/bash
 
-# Define PSQL variable
+# Set the PSQL variable for querying the database
 PSQL="psql --username=freecodecamp --dbname=number_guess -t --no-align -c"
 
-# Prompt for username
-echo "Enter your username:"
+# Get the username from the user
+echo -e "Enter your username:"
 read USERNAME
 
-# Check if username exists in the database
-USER_CHECK=$($PSQL "SELECT COUNT(*) FROM users WHERE username='$USERNAME'")
-if [[ $USER_CHECK -eq 0 ]]; then
-  # If user does not exist
-  echo "Welcome, $USERNAME! It looks like this is your first time here."
+# Fetch user details from the database
+USER=$($PSQL "SELECT username, games_played, best_game FROM users WHERE username ILIKE '$USERNAME'")
+
+# Check if the user is found
+if [[ -z $USER ]]; then
+  # New user
+  echo -e "Welcome, $USERNAME! It looks like this is your first time here."
   # Insert the new user into the database
-  $PSQL "INSERT INTO users (username, games_played, best_game) VALUES ('$USERNAME', 0, NULL)"
+  INSERT_USER=$($PSQL "INSERT INTO users(username) VALUES('$USERNAME')")
 else
-  # If user exists
-  USER_STATS=$($PSQL "SELECT games_played, best_game FROM users WHERE username='$USERNAME'")
-  GAMES_PLAYED=$(echo $USER_STATS | cut -d'|' -f1)
-  BEST_GAME=$(echo $USER_STATS | cut -d'|' -f2)
-  echo "Welcome back, $USERNAME! You have played $GAMES_PLAYED games, and your best game took $BEST_GAME guesses."
+  # Returning user
+  IFS="|" read USERNAME GAMES_PLAYED BEST_GAME <<<"$USER"
+  echo -e "Welcome back, $USERNAME! You have played $GAMES_PLAYED games, and your best game took $BEST_GAME guesses."
 fi
 
-# Generate a random number between 1 and 1000
-SECRET_NUMBER=$(( RANDOM % 1000 + 1 ))
+# Generate the secret number
+SECRET_NUMBER=$((RANDOM % 1000 + 1))
+GUESS_COUNT=0
 
-# Initialize guess count
-GUESSES=0
+echo -e "Guess the secret number between 1 and 1000:"
 
-# Start guessing loop
+# Start the guessing loop
 while true; do
-  echo "Guess the secret number between 1 and 1000:"
   read GUESS
 
   # Check if the guess is an integer
-  if ! [[ $GUESS =~ ^[0-9]+$ ]]; then
-    echo "That is not an integer, guess again:"
-    continue
-  fi
-
-  # Increment guess count
-  GUESSES=$((GUESSES + 1))
-
-  # Compare guess with secret number
-  if [[ $GUESS -lt $SECRET_NUMBER ]]; then
-    echo "It's higher than that, guess again:"
-  elif [[ $GUESS -gt $SECRET_NUMBER ]]; then
-    echo "It's lower than that, guess again:"
+  if [[ ! $GUESS =~ ^[0-9]+$ ]]; then
+    echo -e "That is not an integer, guess again:"
   else
-    # Correct guess
-    echo "You guessed it in $GUESSES tries. The secret number was $SECRET_NUMBER. Nice job!"
-    break
+    ((GUESS_COUNT++))
+
+    # Compare the guess with the secret number
+    if ((GUESS < SECRET_NUMBER)); then
+      echo "It's higher than that, guess again:"
+    elif ((GUESS > SECRET_NUMBER)); then
+      echo "It's lower than that, guess again:"
+    else
+      # Correct guess
+      echo "You guessed it in $GUESS_COUNT tries. The secret number was $SECRET_NUMBER. Nice job!"
+      
+      # Update the user's game statistics
+      if [[ -z $USER ]]; then
+        GAMES_PLAYED=1
+        BEST_GAME=$GUESS_COUNT
+      else
+        ((GAMES_PLAYED++))
+        if [[ -z $BEST_GAME || $GUESS_COUNT -lt $BEST_GAME ]]; then
+          BEST_GAME=$GUESS_COUNT
+        fi
+      fi
+
+      # Update the database with new stats
+      UPDATE_STATS=$($PSQL "UPDATE users SET games_played=$GAMES_PLAYED, best_game=$BEST_GAME WHERE username='$USERNAME'")
+      
+      break
+    fi
   fi
 done
-
-# Update user stats in the database
-$PSQL "UPDATE users SET games_played = games_played + 1, best_game = COALESCE(LEAST(best_game, $GUESSES), $GUESSES) WHERE username='$USERNAME'"
-
